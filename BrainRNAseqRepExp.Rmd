@@ -284,7 +284,7 @@ al = liftOver(al19, loChain); al = unlist(al)
 
 The brain tissue differential expression data is checked for overlap with fetal brain, adult brain and liver H3K4me3 peaks. Only DE genes above FDR 0.01 and log2 fold change > 1 were considered.  
 
-```{r, message=TRUE, eval=TRUE, fig.height=3, fig.width=4, fig.align='center'}
+```{r, message=TRUE, eval=TRUE, fig.height=3.5, fig.width=4.5, fig.align='center'}
 # Compare to highly expressed genes
 fdr = 0.01; l2fc = 1
 ddsRSSig = subset(ddsRS, FvApadj < fdr & abs(FvAl2fc) > l2fc)
