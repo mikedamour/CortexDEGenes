@@ -1,0 +1,378 @@
+---
+title: "DLPFC Gene Expression and Epigenetic Mark Analysis"
+author: "M. D'Amour"
+date: "2/9/2017"
+output: pdf_document
+---
+
+## Project Overview
+
+This project is to analyze RNA-seq data of twelve (12) samples of post-mortem dorso-lateral prefrontal cortex tissue taken from six (6) second-trimester fetuses and six (6) adults of age ~40.  Each sample was sequenced twice on Illumina HiSeq 2000 equipment, post-processed with Illumina software, providing twenty-four (24) data files of paired-end reads in .fastq format.  See Jaffe et.al.
+
+A list of samples and sequencing files complete with the NCBI URLs is provided at https://www.coursera.org/learn/genomic-data-science-project/supplement/0HhAY/which-samples-to-use.
+
+A phenotype data table was compiled manually in Excel from meta data provided on the NCBI website for each of the SRX samples and SRR files.  Reads data was added to the table after alignment.  The data, shown in the table below, was saved from Excel in tab-delimited text format (.txt) for later read into R environment.
+
+| Sample | Cohort | Experiment | File | Age | RIN | Sex | Race | Replct | rds_map'd | map_% |
+|:------:|:------:|:----------:|:----:|----:|:---:|:---:|:----:|:------:|----------:|:-----:|
+| R3452 | fetal | SRX683795 | SRR1554537 | -0.38 | 9.6 | F | AA | 1 | 129220081 | 98.8% |
+| R3452 | fetal | SRX683795 | SRR2071348 | -0.38 | 9.6 | F | AA | 2 | 243191549 | 90.7% |
+| R3462 | fetal | SRX683796 | SRR1554538 | -0.40 | 6.4 | F | AA | 1 | 156236147 | 98.9% |
+| R3462 | fetal | SRX683796 | SRR2071349 | -0.40 | 6.4 | F | AA | 2 | 462286753 | 92.9% |
+| R3485 | fetal | SRX683799 | SRR1554541 | -0.38 | 5.7 | M | AA | 1 | 171773460 | 98.9% |
+| R3485 | fetal | SRX683799 | SRR2071352 | -0.38 | 5.7 | M | AA | 2 | 192826059 | 91.7% |
+| R4706 | fetal | SRX683824 | SRR1554566 | -0.50 | 8.3 | M | HISP | 1 | 123431458 | 98.7% |
+| R4706 | fetal | SRX683824 | SRR2071377 | -0.50 | 8.3 | M | HISP | 2 | 134015735 | 94.0% |
+| R4707 | fetal | SRX683825 | SRR1554567 | -0.40 | 8.6 | M | AA | 1 | 143917249 | 98.9% |
+| R4707 | fetal | SRX683825 | SRR2071378 | -0.40 | 8.6 | M | AA | 2 | 155804075 | 93.9% |
+| R4708 | fetal | SRX683826 | SRR1554568 | -0.50 | 8.0 | M | AA | 1 | 113018703 | 98.9% |
+| R4708 | fetal | SRX683826 | SRR2071379 | -0.50 | 8.0 | M | AA | 2 | 233805731 | 91.7% |
+| R2869 | adult | SRX683793 | SRR1554535 | 41.58 | 8.7 | M | AA | 1 | 96258319 | 99.1% |
+| R2869 | adult | SRX683793 | SRR2071346 | 41.58 | 8.7 | M | AA | 2 | 118061708 | 81.6% |
+| R3098 | adult | SRX683794 | SRR1554536 | 44.17 | 5.3 | F | AA | 1 | 49744953 | 99.5% |
+| R3098 | adult | SRX683794 | SRR2071347 | 44.17 | 5.3 | F | AA | 2 | 77925728 | 92.5% |
+| R3467 | adult | SRX683797 | SRR1554539 | 36.50 | 9.0 | F | AA | 1 | 80649750 | 99.2% |
+| R3467 | adult | SRX683797 | SRR2071350 | 36.50 | 9.0 | F | AA | 2 | 88041049 | 83.8% |
+| R3969 | adult | SRX683814 | SRR1554556 | 36.98 | 8.5 | M | AA | 1 | 113119523 | 99.2% |
+| R3969 | adult | SRX683814 | SRR2071367 | 36.98 | 8.5 | M | AA | 2 | 123291026 | 90.6% |
+| R4166 | adult | SRX683819 | SRR1554561 | 43.88 | 8.7 | M | AA | 1 | 93639705 | 99.0% |
+| R4166 | adult | SRX683819 | SRR2071372 | 43.88 | 8.7 | M | AA | 2 | 106177991 | 84.6% |
+| R3969 | adult | SRX683792 | SRR1554534 | 40.42 | 8.4 | M | AA | 1 | 67363924 | 98.9% |
+| R3969 | adult | SRX683792 | SRR2071345 | 40.42 | 8.4 | M | AA | 2 | 77828716 | 85.2% | 
+
+## Command Line for Sequence Alignment, QC, and Stats
+
+Hisat2, a spliced read aligner, was used to align the reads to the *H. sapiens* UCSC GRCh38 human genome (hg38).  The publishers of Hisat2 make available at https://ccb.jhu.edu/software/hisat2/index.shtml a pre-indexed version of hg38 in multiple genome.ht*x* files.  The tar.gz file was downloaded using the web interface.
+
+The SRA reads files were accessed directly using the Hisat2 SRA interface option, therefore no separate download of the files were required and use of fastq-dump was unnecessary.  
+
+Hisat2, compression to .bam, FastQC, and stats analysis were run at the command line from the following scripts.
+
+```{r setup, eval=FALSE}
+GENEDIR=/pathToGenomeData
+ARCVDIR=/pathToArchive
+LOGDIR=/pathToLog
+WRKDIR=/pathToWorkDir
+
+# Create file listing all the SRR numbers for files that are to be analyzed
+printf '%s\n' 'SRR1554534' 'SRR1554535' 'SRR1554536' 'SRR1554537' 'SRR1554538' 'SRR1554539' \
+'SRR1554541' 'SRR1554556' 'SRR1554561' 'SRR1554566' 'SRR1554567' 'SRR1554568' 'SRR2071345' \
+'SRR2071346' 'SRR2071347' 'SRR2071348' 'SRR2071349' 'SRR2071350' 'SRR2071352' 'SRR2071367' \
+'SRR2071372' 'SRR2071377' 'SRR2071378' 'SRR2071379' >srrList.txt
+
+# Hisat2 only outputs .sam files, so separately compress to .bam
+for i in `cat srrList.txt`; do
+    hisat2 -p 4 -t -x $GENEDIR/hg38_ht/genome --sra-acc i -S $ARCVDIR/i.sam >& $LOGDIR/i.log
+    samtools view -b -@ 4 -o $WRKDIR/i.bam $ARCVDIR/i.sam
+    # Check quality of Hisat2 output .bam files
+    fastqc -o $WRKDIR/fastqcOut -t 4 $WRKDIR/i.bam
+    samtools stats $WRKDIR/i.bam >$WRKDIR/statsOut/i.stats
+done
+```
+The (example) lines below were extracted manually from each .stats file for reporting. The "reads mapped" values were manually inserted into the phenotype table for later FPMR calculation for plotting.  
+        # SN	raw total sequences:	132911310  
+        # SN	reads mapped:	        106284374  
+        # SN	average quality:	    27.9  
+
+## Review of QC Data
+
+The QC data output by FastQC above was analyzed using MultiQC.  Directing it to the main working directory, it locates subdirectories containing FastQC output as well as logs and stats output, consolidating it into graphical .html and textual output.
+
+```{r, eval=FALSE}
+# Run MultiQC on all QC and log data
+multiqc -f  $WRKDIR/readsData
+```
+
+Review of the MultiQC .html output file reveals some "3' droop" of individual base quality, which is handled by Hisat2 soft clipping by not reflected in FastQC's output.  This is shown when reads with CIGAR strings showing soft clipping ("S"s) are still counted at full length - all reads are counted at 100bp.  Relatively normal kmer content graphs with recognizable bias on the 5' end were present.  Further, some minimal contamination is seen in three files.
+
+Since we are analyzing the files for gene expression read counts, not for SNPs, a decision was made to do no further trimming for base quality, read quality, or contamination.
+
+## Counting Reads for Gene Expression
+
+The Gencode release 25 GCRh38.p7 in .gtf format was downloaded from https://www.gencodegenes.org/releases/current.html using the web interface. The featureCount program was run at the command line, as follows.
+
+```{r, eval=FALSE}
+featureCounts -T 4 -t gene -p -a $GENES/hg38genes/gencode.v25.annotation.gtf \
+-o $WKDIR/expGenes/aln.pg.fcnt \
+$WRKDIR/SRR1554535.bam $WRKDIR/SRR2071346.bam $WRKDIR/SRR1554536.bam \
+$WRKDIR/SRR2071347.bam $WRKDIR/SRR1554539.bam $WRKDIR/SRR2071350.bam \
+$WRKDIR/SRR1554556.bam $WRKDIR/SRR2071367.bam $WRKDIR/SRR1554561.bam \
+$WRKDIR/SRR2071372.bam $WRKDIR/SRR1554534.bam $WRKDIR/SRR2071345.bam \
+$WRKDIR/SRR1554537.bam $WRKDIR/SRR2071348.bam $WRKDIR/SRR1554538.bam \
+$WRKDIR/SRR2071349.bam $WRKDIR/SRR1554541.bam $WRKDIR/SRR2071352.bam \
+$WRKDIR/SRR1554566.bam $WRKDIR/SRR2071377.bam $WRKDIR/SRR1554567.bam \
+$WRKDIR/SRR2071378.bam $WRKDIR/SRR1554568.bam $WRKDIR/SRR2071379.bam
+```
+
+## Statistical Analysis of Feature Counts
+
+From this point, all analysis was performed in R.  Initializing environment.
+```{r, eval=TRUE, message=FALSE}
+library(Rsubread);  library(GenomicRanges);   library(BiocGenerics)
+library(DESeq2);    library(AnnotationDbi);   library(SummarizedExperiment)
+library(Biobase);   library(stringr);         library(ChIPpeakAnno)
+library(dplyr);     library(RColorBrewer);    library(AnnotationHub)
+library(pheatmap);  library(rtracklayer);     library(ggplot2);   library(ggrepel)
+
+```
+
+```{r, include= TRUE, cache=TRUE, cache.comments=TRUE}
+bamDir = c('/Volumes/MacExp/geneData/hisatBam/')
+rsltDir = c('/Users/mikedamour/Genomics/gdsCap/gdsCapData/readsData/expGenes/')
+geneDir = c('/Users/mikedamour/Genomics/genomes/hg38genes/')
+
+# Import data from command line featureCounts
+expGenesCL = read.table (paste0(rsltDir, 'aln.pg.fcnt.txt'), 
+                         header = TRUE, sep = '\t', skip = 1)
+
+# Clean col names to include only the file id
+colnames(expGenesCL) = c(colnames(expGenesCL[1:6]), 
+                         str_extract(colnames(expGenesCL[7:30]), "SRR[0-9]+"))
+```
+```{r, include=FALSE, eval=FALSE}
+# Pull gene symbols out of the GTF file used for featureCounts - takes about 3 minutes
+# Write into a file first time.  Read from file after.
+hg38GeneSymsRaw = read.table(paste0(geneDir, "gencode.v25.annotation.gtf"), 
+                             fill = TRUE, skip = 5, stringsAsFactors = TRUE)
+hg38GeneSyms = select(geneSymsRaw[hg38GeneSymsRaw$V3 == "gene",], V10, V19)
+row.names(hg38GeneSyms) = NULL; colnames(hg38GeneSyms) = c("ENSEMBL", "SYMBOL")
+write.table(hg38GeneSyms, paste0(geneDir, "hg38GeneSyms.txt"), quote = FALSE)
+```
+```{r, include=FALSE, eval=TRUE, cache=TRUE, cache.comments=TRUE}
+# Recover previously written gene symbol file
+hg38GeneSyms = read.table(paste0(geneDir, "hg38GeneSyms.txt"), stringsAsFactors = FALSE)
+expGenesCL$hg38Sym = hg38GeneSyms$SYMBOL[match(expGenesCL[ ,1], hg38GeneSyms$ENSEMBL)]
+expGenesCL = select(expGenesCL, Geneid, hg38Sym, Chr:SRR2071379)
+dim(expGenesCL)  # 58037  31  # All the genes and 31 columns
+write.table(expGenesCL, paste0(rsltDir, "dlpfcDEGFull.txt"), sep = '\t', quote = FALSE)
+
+# Extract assay information and convert to DataFrame (from data.frame) to give dimensions
+expData = DataFrame(expGenesCL[,8:31])
+
+# Use gene names as row names
+row.names(expData) = expGenesCL$Geneid
+
+# Make a GRanges for the row ranges
+expGr = makeGRangesFromDataFrame(expGenesCL[,1:6], keep.extra.columns = TRUE)
+
+# Bring in phenotype data
+pdata = read.table (paste0(rsltDir, 'phenoData2_1-18-17.txt'), header = TRUE, sep = '\t')
+pdata = pdata[1:24,]
+pdata$Sample = as.character(pdata$Sample)
+pdata$Sample = as.factor(str_extract(pdata$Sample, "R[0-9]+"))
+pdata$Replicate = as.factor(pdata$Replicate)
+row.names(pdata) = pdata$File
+summary(pdata)
+
+# Construct the row data 
+pfcSe = SummarizedExperiment(assays = list(counts = as.matrix(expData)), 
+                             rowRanges = expGr, colData = pdata)
+# Use adult as the reference level for the cohort variable
+pfcSe$Cohort = relevel(pfcSe$Cohort, 'adult')  # Already alphabetic, but to be sure
+
+# Begin transformations for visual exploration with pre-filter of empty rows
+nrow(pfcSe)  # 58037
+pfcSe = pfcSe[rowSums(assay(pfcSe)) > 1,]
+nrow(pfcSe)  # 32720
+
+# Remove chrM as was done in Jaffe, only 37 but have high counts
+pfcSe = subset(pfcSe, seqnames != 'chrM')
+nrow(pfcSe)  # 32683
+
+# Make a collapsed sample SE with values as fragments per million reads, not FPKM
+pfcSeColl = collapseReplicates(pfcSe, pfcSe$Sample, renameCols = TRUE)
+# Make an fpmr assay for plotting
+fpmrAssay = log2(assay(pfcSeColl) / (pfcSeColl$Reads_Mapped/1e6) + 1)
+
+# Cannot convert se to dds due to bug? Ensure pfcSE built above with matrix not DataFrame
+pfcDds = DESeqDataSet(pfcSe, ~ RIN + Sex + Replicate + Race + Dup_Lev + Contam + Cohort)
+# Assay must be integers, so must wait to collapseReplicates and any FPMR stuff
+pfcDdsColl = DESeqDataSet(pfcSeColl, ~ RIN + Sex + Race + Dup_Lev + Contam + Cohort)
+
+# Reg log transform for homoskedasticity :)
+pfcSeRL = rlog(pfcDds, blind = FALSE)  # Keep replicates separate for PCA
+pfcSeCollRL = rlog(pfcDdsColl, blind = FALSE)  # Replicates collapsed for boxplot
+
+# Since we subset the columns by removing Replicate, need to run *droplevels*.
+pfcDdsColl$Replicate = droplevels(pfcDdsColl$Replicate)
+```
+### Experiment
+This stage of the fetal vs. adult brain tissue gene expression analysis will check for epigenetic marks contributing to gene differential expression.  Specifically, fetal and adult brain tissue gene expression data will be compared to known H3K4me3 sites found previously with CHiP seq and published with the Epigenomic Roadmap Study.  As a sanity check, a comparison will be also done with known H3K4me3 promoter sites in other organs.
+
+The analysis will look for
+
+1. Correlation between our DLPFC fetal brain gene expression and the known  H3K4me3 promoter data.
+2. No or less correlation between DLPFC adult brain gene expression and the fetal brain promoter data.
+3. No or less correlation between DLPFC fetal data and known adult liver promoter data.
+4. No or less correlation between DLPFC fetal data and known fetal thymus promoter data.
+
+### Data Preparation
+
+Previously, fetal and adult brain tissue has been collected, sequenced, and analyzed showing significant differential expression between the two age groups with very high confidence.  Data comes to this experiment in R SummarizedExperiment format, making further analysis convenient.  DLPFC brain gene expression is shown below briefly.
+```{r, cache=TRUE, cache.comments=TRUE, message=FALSE}
+# Simplify formula and run analysis
+ddsRS = DESeqDataSet(pfcSeColl, ~ RIN + Sex + Cohort)
+ddsRS = DESeq(ddsRS)
+
+# Extract results and annotate with gene symbols
+resRS = results(ddsRS, alpha = 0.01, contrast = c("Cohort", "fetal", "adult"))
+resRS$hg38Sym = hg38GeneSyms$SYMBOL[match(row.names(resRS), hg38GeneSyms$ENSEMBL)]
+```
+
+```{r, include=TRUE, message=FALSE, error=FALSE}
+# Add results data to DESeq object for tidy
+mcols(ddsRS) = as(mutate(as.data.frame(mcols(ddsRS)), FvAl2fc = resRS$log2FoldChange,
+                         FvApvalue = resRS$pvalue,FvApadj = resRS$padj), "DataFrame")
+```
+### Locate Epigenome Roadmap Data
+The epigenetic data for promoters was found at the Epigeneome Roadmap website with URL given below.  By inspection of their spreadsheet, data for appropriate age and organ was found.  It was convenient then to get the files through Bioconductor AnnotationHub already in R GRanges formats.
+
+All gene expression data was aligned to the hg38 genome but the Epigenome Roadmap data was aligned to hg19.  This required doing liftOver from hg19 to hg38 to proceed.
+```{r, cache=TRUE, message=FALSE, error=FALSE, warning=FALSE}
+# Roadmap data references at http://egg2.wustl.edu/roadmap/web_portal/meta.html
+# Go to Annotation hub for data - all hg19!  Load liftOver chain file.
+loChain = import.chain(paste0(geneDir, "hg19ToHg38.over.chain"))
+ahub = AnnotationHub()
+ahub = subset(ahub, species == "Homo sapiens")
+
+# Get roadmap data and liftover to hg38 from hg19, start with fetal brain data
+qh = query(ahub, c('h3k4me3', 'Homo sapiens', 'narrowPeak', 'brain', 'E082'))
+fb19 = qh[['AH30479']]  # Female fetal E082
+fb = liftOver(fb19, loChain); fb = unlist(fb)
+
+# Adult brain data
+qh = AnnotationHub::query(ahub, c('h3k4me3', 'Homo sapiens', 'narrowPeak', 'brain', 'E073'))
+ab19 = qh[['AH30413']]  # Male mixed adult E073
+ab = liftOver(ab19, loChain); ab = unlist(ab)
+
+# Adult liver data
+qh = query(ahub, c('h3k4me3', 'Homo sapiens', 'narrowPeak', 'liver', 'E066'))
+al19 = qh[['AH30367']]  # Adult liver E066
+al = liftOver(al19, loChain); al = unlist(al)
+```
+### Analysis of Brain Tissue Overlaps
+
+The brain tissue differential expression data is checked for overlap with fetal brain promoters and liver promoters.  Since only adult liver promoter data was available introducing both organ and age variables, fetal thymus promoter data was also analyzed.
+
+Two comparisons were performed with each of three sets of H3K4me3 promoter data.  The first was to look at the percentage of overlap - coverage - for both the highly positively expressed genes and the highly negatively expressed genes looking at the change in percentage of overlat as the set was reduced to fewer but more highly expressed genes. Second, a formal pearson correlation was run at each stage.
+
+Below is one such run on genes with expression of < -1 and > 1.  After all runs, the table is shown below including all comparisons.  Only genes with adjusted pvalues of < 0.0001 were used.
+
+```{r, message=TRUE}
+# Compare to highly expressed genes
+fdr = 0.01; l2fc = 1
+ddsRSSig = subset(ddsRS, FvApadj < fdr & abs(FvAl2fc) > l2fc)
+fbOlap = subsetByOverlaps(promoters(rowRanges(ddsRSSig)), fb)
+abOlap = subsetByOverlaps(promoters(rowRanges(ddsRSSig)), ab)
+alOlap = subsetByOverlaps(promoters(rowRanges(ddsRSSig)), al)
+
+# Plot Venn diagram of fetal brain vs adult brain vs adult liver
+par(mfrow=c(1,1))
+makeVennDiagram(list(fbOlap, abOlap, alOlap), ignore.strand = T,
+                NameOfPeaks = c('FetalBrain', 'AdultBrain', 'AdultLiver'),
+                totalTest=10000, scaled=F, euler.d=F, fill=c(1,2,3))
+
+# Check for H3K4me3 mark enrichment in fetal brain vs. adult brain vs. adult liver
+# Code related to Prof. Hansen week 1 Use Case and loop code to F. Rodriguez, peer student
+
+methilation = data.frame(MethMarks = c("FetalBrainPeaks", "AdultBrainPeaks", "AdultLiverPeaks"), OddsRatio = c(0,0,0))
+refPeak = c('fb', 'ab', 'al')
+prom = reduce(promoters(rowRanges(ddsRSSig), ignore.strand = TRUE))
+for(i in seq_along(refPeak))  { 
+  peaks = reduce(get(refPeak[i]))
+  both <- GenomicRanges::intersect(prom, peaks, ignore.strand = T)
+  only.prom <- BiocGenerics::setdiff(prom, both)
+  only.peaks <- BiocGenerics::setdiff(peaks, both)
+  overlapMat <- matrix(0, ncol = 2, nrow = 2)
+  colnames(overlapMat) <- c("in.peaks", "out.peaks")
+  rownames(overlapMat) <- c("in.promoters", "out.promoter")
+  overlapMat[1,1] <- sum(width(both))
+  overlapMat[1,2] <- sum(width(only.prom))
+  overlapMat[2,1] <- sum(width(only.peaks))
+  overlapMat[2,2] <- 1.5*(10^9) - sum(overlapMat)
+  round(overlapMat / 10^6, 2)
+  
+  print(as.character(methilation$MethMarks[i]))
+  print(round(overlapMat/ 10^6, 1))
+  print("---------------------------")
+  oddsRatio <- overlapMat[1,1] * overlapMat[2,2] / (overlapMat[2,1] * overlapMat[1,2])
+  methilation$OddsRatio[i] <-oddsRatio
+}
+# Show odds ratios for fetal brain, adult brain, and adult liver overlaps with DE genes
+print(methilation)
+
+
+# Now, compare to highly expressed genes
+fdr = 0.0001; l2fc = 1
+ddsRSSig = subset(ddsRS, FvApadj < fdr & abs(FvAl2fc) > l2fc)
+promOlapFb = findOverlaps(promoters(rowRanges(ddsRSSig)), fb, select = "first")
+promOlapAb = findOverlaps(promoters(rowRanges(ddsRSSig)), ab, select = "first")
+promOlapAl = findOverlaps(promoters(rowRanges(ddsRSSig)), al, select = "first")
+
+
+# Check percentage of overlap
+olapPctFb = (length(promOlapFb) - sum(is.na(promOlapFb))) / length(promOlapFb)
+olapPctAb = (length(promOlapAb) - sum(is.na(promOlapAb))) / length(promOlapAb)
+olapPctAl = (length(promOlapAl) - sum(is.na(promOlapAl))) / length(promOlapAl)
+
+cat('HMark/ExpGene Olaps: FetBr =', olapPctFb, ' AdltBr =', olapPctAb, ' AdltLv =', olapPctAl)
+
+# Convert overlap vector to logical
+sigVecFb = as.logical(ifelse(!is.na(promOlapFb), 1, 0))
+sigVecAb = as.logical(ifelse(!is.na(promOlapAb), 1, 0))
+sigVecAl = as.logical(ifelse(!is.na(promOlapAl), 1, 0))
+
+
+promCorFb = cor(rowRanges(ddsRSSig)$FvAl2fc, sigVecFb, use = "complete.obs")
+promCorAb = cor(rowRanges(ddsRSSig)$FvAl2fc, sigVecAb, use = "complete.obs")
+promCorAl = cor(rowRanges(ddsRSSig)$FvAl2fc, sigVecAl, use = "complete.obs")
+
+cat('HMark/Expr Corr: FetBr =', promCorFb, 'AdltBr =', promCorAb, ' AdltLv =', promCorAl)
+```
+
+```{r}
+# Calculate histogram data and percentage of marked genes against L2FC for plot
+expData = data.frame(FvAl2fc = rowRanges(ddsRSSig)$FvAl2fc, sigVec = sigVecFb, 
+                     sig = as.factor(ifelse(as.logical(sigVecFb), "FB Promo", "No FB Promo")), 
+                     hg38Sym = rowRanges(ddsRSSig)$hg38Sym)
+expData$sig = relevel(expData$sig, "FB Promo")
+par(mfrow = c(1, 1))
+h1 = hist(expData$FvAl2fc, breaks = seq(-12, 12, by = 0.1), plot = FALSE)
+marked = expData$FvAl2fc[sigVecFb]
+h2 = hist(marked, breaks = seq(-12, 12, by = 0.1), plot = FALSE)
+olapVecFb = h2[[2]]/(h1[[2]]+0.001)
+olapDfFb = as.data.frame(cbind(GeneExprL2FC = seq(-12, 11.9, by = 0.1), OlapCoverage = olapVecFb))
+plot(olapDfFb$OlapCoverage ~ olapDfFb$GeneExprL2FC, pch=21, bg="lightblue", col="lightblue4")
+abline(glm(olapDfFb$OlapCoverage ~ olapDfFb$GeneExprL2FC), lty = 2, col = 2, lwd = 3)
+
+```
+
+The plot above shows the percentage of FB H3K4me3 overlap with highly expressed genes.  The fitted line show a positive correlation for the fetal highly expressed genes with the FB promoter data.
+
+
+
+### Discussion of Data
+
+
+### Conclusion
+
+There is significant correlation between fetal brain H3K4me3 promoters and highly expressed genes in fetal genes.  The FB H3K4me3 promoter locations are negatively correlated with adult brain gene expression.  This suggests that the H3K4me3 may play a part in differential gene expression between fetal and adult brains.
+
+Comparison using liver and thymus organ H3K4me3 promoter data show much smaller correlation, suggesting that the brain data and brain promoter correlation test is valid.
+```{r, results='markup'}
+# Histogram showing promo vs. no promo
+ggplot(expData, aes(FvAl2fc, fill = sig)) +
+  geom_histogram(binwidth = 0.1)
+```
+
+### Histogram of Marked vs Unmarked Expressed Genes
+
+This was meant to show the percentage of coverage for H3K4me3 on positively expr genes (right) vs. negatively expr genes (left).  The visual is inconclusive.
+
+(1) Jaffe, A.E., Shin, J., Collado-Torres, L., Leek, J.T., Tao, R., Li, C., Gao, Y., Jia, Y., Maher, B.J., Hydel, T.M., Kleinman, J.E., Weinberger, D.R. - Developmental regulation of human cortex transcription and its clinical relevance at single base resolution. *Nature Neuroscience* **18**, 154-161 (2015)
+(2) Love, M., Anders, S., Huber, W., Morgan M.  *RNA-Seq workflow: gene-level exploratory analysis and differential expression*. (2014)
+(3) Turner, S. *Getting Genetics Done*, http://www.gettinggeneticsdone.com/2014. 
+
+```{r}
+sessionInfo()
+```
