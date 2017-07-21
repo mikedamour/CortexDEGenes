@@ -23,7 +23,7 @@ The secondary purpose of this study is to elaborate a complete pipeline using op
 
 Comparisons of the adult vs. fetal brain cohorts show a large number of differentially expressed genes, as expected.  Of the 32,683 named gene/RNA present in the samples, 10,114 or nearly 1/3 showed significant differential expression - both up and down regulated.  The fetal brain tissue shows up regulation of over 250 times for brain-development-related genes such as SOX11 and NEUROG1, as well as TOP2A (topoisomerase 2).  This data is available for further study.  The comparison of expressed genes between the cohorts and H3K4me3 methylation peaks show significant age and organ correlation.
 
-The open-source tool chain used to perform this analysis was very satisfactory.  Over the course of the work, performance of alignment between Tophat2 and Hisat2 improved by more than an order of magnitude.  Importantly, Hisat2 has a direct interface to the NCBI Sequence Read Archive that uses a fast pipe to download data as needed, speeding up the process a lot.  FastQC and MultiQC provided excellent performance and good visualization of data, allowing easy preparation of the data.  The R Bioconductor environment provides easy availability and installation of tools.  The *Rsubread featureCount* and *DESeq2* R packages made the analyses quite manageable.  Work was completed on a contemporary mid-range laptop with few individual runtimes of over an hour for the most compute-intensive tasks.
+The open-source tool chain used to perform this analysis was very satisfactory.  Over the course of the work, performance of alignment between Tophat2 and Hisat2 improved by more than an order of magnitude.  Importantly, Hisat2 has a direct interface to the NCBI Sequence Read Archive that uses a fast pipe to download data as needed, speeding up the process a lot.  FastQC and MultiQC provided excellent performance and good visualization of data, allowing easy preparation of the data.  The R Bioconductor environment provides easy availability and installation of tools.  The *Rsubread featureCount* and *DESeq2* R packages made the analyses quite manageable.  Liftover tools and support files to convert methylation peaks files from hg19 to hg38 worked without difficulty or time burden.  Work was completed on a contemporary mid-range laptop with few individual runtimes of over an hour for the most compute-intensive tasks.
 
 ## Reproducibility
 
@@ -285,9 +285,9 @@ p = ggplot(resRSdf, aes(log2FoldChange, -log10(pvalue))) +
 p
 ```
 
-## Most Highly Differentially Expressed Genes
+## Most Highly Expressed Genes
 
-The top 25/25 differentially expressed genes are displayed below.  The entire list of  expressed gense are in to file *dlpfcDEGSig.txt*.   
+The top 25/25 differentially expressed genes are displayed below.  The entire list of expressed genes are in file *dlpfcDEGSig.txt*.   
    
 ```{r, eval=TRUE, results='hold'}
 print('Number of expressed RNA with sum of row counts > 1, of 58,037 potential')
@@ -305,13 +305,17 @@ resRSPrnt = select(as.data.frame(resRSSig), hg38Sym, log2FoldChange, padj)
 write.table(resRSSig, paste0(rsltDir, "dlpfcDEGSig.txt"), sep = '\t', quote = FALSE)
 ```
 
-### Top Differentially Expressed Genes - Adult over Fetal
+### Top Differentially Expressed Genes - Fetal over Adult
+
+Ordered by log2 fold change fetal over adult.
 
 ```{r, eval=TRUE, results='hold'}
 head(resRSPrnt, 25)
 ```
 
-### Top Differentially Expressed Genes - Fetal over Adult (ascending)
+### Top Differentially Expressed Genes - Adult over Fetal
+
+Ordered by log2 fold change adult over fetal. (Top 25 ascending.)
 
 ```{r, eval=TRUE, results='hold'}
 tail(resRSPrnt, 25)
@@ -347,7 +351,7 @@ al = liftOver(al19, loChain); al = unlist(al)
 ```
 ## Analysis of Brain Gene Expression Overlaps with H3K4me3 Marks
 
-The brain tissue differential expression data is checked for overlap with fetal brain, adult brain and liver H3K4me3 peaks. Only differentially-expressed genes above FDR 0.01 and log2 fold change > 1 were considered.  
+The brain tissue differential expression data is checked for overlap with fetal brain, adult brain and liver H3K4me3 peaks. Only differentially-expressed genes above FDR 0.01 and log2 fold change > 1 are considered.  
 
 ```{r, message=TRUE, eval=TRUE, fig.height=3.5, fig.width=4.5, fig.align='center'}
 # Compare to highly expressed genes
@@ -393,8 +397,6 @@ for(i in seq_along(refPeak))  {
 # Show odds ratios for fetal brain, adult brain, and adult liver overlaps with DE genes
 print(methylation)
 ```
-
-
 
 ### Promoter Comparison - Fetal Brain, Adult Brain, Adult Liver; Verification
 
